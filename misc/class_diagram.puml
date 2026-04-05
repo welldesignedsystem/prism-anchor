@@ -35,7 +35,7 @@ StepBase --> WorkflowContext
 
 ' ── Step 1 — Chain of Responsibility ────────────────
 
-package "Setup" {
+package "Setup (Step 1)" {
 
 class SetupStep {
   - chain : ConfigHandler
@@ -65,7 +65,7 @@ FrequencyHandler --|> ConfigHandler
 
 ' ── Step 2 — Chain of Responsibility + short-circuit ─
 
-package "Audit" {
+package "Audit (Step 2)" {
 
 class AuditStep {
   - chain : AuditHandler
@@ -93,7 +93,7 @@ ContentAuditHandler --|> AuditHandler
 
 ' ── Step 3 — Observer ────────────────────────────────
 
-package "Monitor" {
+package "Monitor (Step 3)" {
 
 class MonitorStep {
   - trackers : List<VisibilityTracker>
@@ -122,7 +122,7 @@ VoiceSearchTracker ..|> VisibilityTracker
 
 ' ── Step 4 — Composite ───────────────────────────────
 
-package "Score" {
+package "Score (Step 4)" {
 
 class ScoreStep {
   - root : ScoreComponent
@@ -157,7 +157,7 @@ CompetitorShareScore ..|> ScoreComponent
 
 ' ── Step 5 — Strategy (fan-out) ──────────────────────
 
-package "Optimise" {
+package "Optimise (Step 5)" {
 
 class OptimiseStep {
   - analyser : ContentAnalyser
@@ -185,7 +185,7 @@ SchemaBuilderStrategy ..|> OptimisationStrategy
 
 ' ── Step 6 — Strategy (routing) ──────────────────────
 
-package "Alert" {
+package "Alert (Step 6)" {
 
 class AlertStep {
   - router : AlertRouter
@@ -215,7 +215,7 @@ WeeklySummaryStrategy ..|> AlertStrategy
 
 ' ── Step 7 — Builder ─────────────────────────────────
 
-package "Report" {
+package "Report (Step 7)" {
 
 class ReportStep {
   - builder : ReportBuilder
