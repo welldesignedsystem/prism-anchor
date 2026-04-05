@@ -1,0 +1,72 @@
+flowchart TD
+    START(["👤 Log In"])
+
+    subgraph S1["Step 1 — Set Up Project"]
+        A1["Add your domain"]
+        A2["Enter tracked queries"]
+        A3["Choose AI engines to monitor\nPerplexity · ChatGPT · Gemini · Copilot"]
+        A4["Set crawl frequency\nWeekly / Daily / 6-hourly / 1-hourly"]
+        A1 --> A2 --> A3 --> A4
+    end
+
+    subgraph S2["Step 2 — Run Initial Audits"]
+        B1["AI Crawler Audit\nCan AI bots read your site?"]
+        B2["Technical SEO Audit\nSpeed · Sitemap · Broken links"]
+        B3["Content Audit\nPaste URL — get AEO + GEO score"]
+        B1 --> B2 --> B3
+    end
+
+    subgraph S3["Step 3 — Monitor Visibility"]
+        C1["GEO Tracker\nAre AI engines citing you?"]
+        C2["AEO Manager\nDo you own snippets and PAA boxes?"]
+        C3["SEO Rank Tracker\nWhere do you rank organically?"]
+        C4["Voice Search Tracker\nAre you the spoken answer?"]
+        C1 --> C2 --> C3 --> C4
+    end
+
+    subgraph S4["Step 4 — Review Your Scores"]
+        D1["GEO Visibility Score 0–100\nHow often AI engines cite you"]
+        D2["AEO Win Rate %\nSnippet and PAA box wins"]
+        D3["SEO Visibility Score\nOrganic ranking health"]
+        D4["Competitor AI Share\nYour citations vs competitors"]
+        D1 --> D2 --> D3 --> D4
+    end
+
+    subgraph S5["Step 5 — Optimise Content"]
+        E1["Content Optimiser\nScore a page and see gaps"]
+        E2["AI Brief Generator\nGenerate answer-first content brief"]
+        E3["FAQ Auto-Generator\nBuild Q&As from PAA data"]
+        E4["Schema Builder\nGenerate and test JSON-LD markup"]
+        E1 --> E2
+        E1 --> E3
+        E1 --> E4
+    end
+
+    subgraph S6["Step 6 — Act on Alerts"]
+        F1{"What kind\nof alert?"}
+        F2["🔴 Immediate Alert\nSlack + Email\nCitation lost · Snippet stolen\nCrawler blocked"]
+        F3["🟡 Daily Digest\nEmail\nModerate changes"]
+        F4["🟢 Weekly Summary\nEmail\nPositive trends and wins"]
+        F1 -->|Critical| F2
+        F1 -->|Moderate| F3
+        F1 -->|Positive| F4
+    end
+
+    subgraph S7["Step 7 — Report"]
+        G1["White-label Client Reports\nBranded PDFs for each client"]
+        G2["Executive Dashboard\nGEO + AEO + SEO scores at a glance"]
+        G3["Export Data\nSheets · Looker Studio · BigQuery · API"]
+        G1 --> G2 --> G3
+    end
+
+    LOOP(["🔁 Repeat — Monitor and Optimise"])
+
+    START --> S1
+    S1 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> S5
+    S5 --> S6
+    S6 --> S7
+    S7 --> LOOP
+    LOOP --> S3

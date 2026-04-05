@@ -1,0 +1,250 @@
+@startuml
+
+package "Core" {
+
+' ── Core orchestration ───────────────────────────────
+
+abstract class WorkflowOrchestrator {
+  + steps : List<StepBase>
+  + run() : void
+  + runLoop() : void
+  + triggerStep(step : StepBase) : void
+}
+
+abstract class StepBase {
+  # context : WorkflowContext
+  + execute() : void
+  # {abstract} setup() : void
+  # {abstract} run() : void
+  # {abstract} validate() : void
+  # teardown() : void
+}
+
+class WorkflowContext {
+  + domain : String
+  + queries : List<String>
+  + results : Map<String, Object>
+  + sharedState : Map<String, Object>
+}
+
+WorkflowOrchestrator "1" *-- "many" StepBase : steps
+WorkflowOrchestrator --> WorkflowContext
+StepBase --> WorkflowContext
+
+}
+
+' ── Step 1 — Chain of Responsibility ────────────────
+
+package "Setup" {
+
+class SetupStep {
+  - chain : ConfigHandler
+  # run() : void
+}
+
+abstract class ConfigHandler {
+  # next : ConfigHandler
+  + {abstract} handle(ctx : WorkflowContext) : void
+  + setNext(h : ConfigHandler) : ConfigHandler
+}
+
+class DomainHandler
+class QueryHandler
+class EngineHandler
+class FrequencyHandler
+
+SetupStep --|> StepBase
+SetupStep --> ConfigHandler
+ConfigHandler o-- ConfigHandler : next
+DomainHandler --|> ConfigHandler
+QueryHandler --|> ConfigHandler
+EngineHandler --|> ConfigHandler
+FrequencyHandler --|> ConfigHandler
+
+}
+
+' ── Step 2 — Chain of Responsibility + short-circuit ─
+
+package "Audit" {
+
+class AuditStep {
+  - chain : AuditHandler
+  # run() : void
+}
+
+abstract class AuditHandler {
+  # next : AuditHandler
+  + {abstract} handle(ctx : WorkflowContext) : Boolean
+  + setNext(h : AuditHandler) : AuditHandler
+}
+
+class CrawlerAuditHandler
+class TechnicalSEOHandler
+class ContentAuditHandler
+
+AuditStep --|> StepBase
+AuditStep --> AuditHandler
+AuditHandler o-- AuditHandler : next
+CrawlerAuditHandler --|> AuditHandler
+TechnicalSEOHandler --|> AuditHandler
+ContentAuditHandler --|> AuditHandler
+
+}
+
+' ── Step 3 — Observer ────────────────────────────────
+
+package "Monitor" {
+
+class MonitorStep {
+  - trackers : List<VisibilityTracker>
+  # run() : void
+  + subscribe(t : VisibilityTracker) : void
+  + notify(event : TrackingEvent) : void
+}
+
+interface VisibilityTracker {
+  + onUpdate(event : TrackingEvent) : void
+}
+
+class GEOTracker
+class AEOTracker
+class SEORankTracker
+class VoiceSearchTracker
+
+MonitorStep --|> StepBase
+MonitorStep "1" o-- "many" VisibilityTracker
+GEOTracker ..|> VisibilityTracker
+AEOTracker ..|> VisibilityTracker
+SEORankTracker ..|> VisibilityTracker
+VoiceSearchTracker ..|> VisibilityTracker
+
+}
+
+' ── Step 4 — Composite ───────────────────────────────
+
+package "Score" {
+
+class ScoreStep {
+  - root : ScoreComponent
+  # run() : void
+}
+
+interface ScoreComponent {
+  + compute(ctx : WorkflowContext) : ScoreResult
+}
+
+class CompositeScore {
+  - children : List<ScoreComponent>
+  + add(c : ScoreComponent) : void
+  + compute(ctx : WorkflowContext) : ScoreResult
+}
+
+class GEOScore
+class AEOScore
+class SEOScore
+class CompetitorShareScore
+
+ScoreStep --|> StepBase
+ScoreStep --> ScoreComponent
+CompositeScore ..|> ScoreComponent
+CompositeScore "1" o-- "many" ScoreComponent : children
+GEOScore ..|> ScoreComponent
+AEOScore ..|> ScoreComponent
+SEOScore ..|> ScoreComponent
+CompetitorShareScore ..|> ScoreComponent
+
+}
+
+' ── Step 5 — Strategy (fan-out) ──────────────────────
+
+package "Optimise" {
+
+class OptimiseStep {
+  - analyser : ContentAnalyser
+  - strategies : List<OptimisationStrategy>
+  # run() : void
+}
+
+interface OptimisationStrategy {
+  + optimise(analysis : ContentAnalysis) : OptimisationResult
+}
+
+class ContentAnalyser
+class BriefGeneratorStrategy
+class FAQGeneratorStrategy
+class SchemaBuilderStrategy
+
+OptimiseStep --|> StepBase
+OptimiseStep --> ContentAnalyser
+OptimiseStep "1" o-- "many" OptimisationStrategy : strategies
+BriefGeneratorStrategy ..|> OptimisationStrategy
+FAQGeneratorStrategy ..|> OptimisationStrategy
+SchemaBuilderStrategy ..|> OptimisationStrategy
+
+}
+
+' ── Step 6 — Strategy (routing) ──────────────────────
+
+package "Alert" {
+
+class AlertStep {
+  - router : AlertRouter
+  # run() : void
+}
+
+class AlertRouter {
+  + route(alert : Alert) : AlertStrategy
+}
+
+interface AlertStrategy {
+  + dispatch(alert : Alert) : void
+}
+
+class ImmediateAlertStrategy
+class DailyDigestStrategy
+class WeeklySummaryStrategy
+
+AlertStep --|> StepBase
+AlertStep --> AlertRouter
+AlertRouter --> AlertStrategy
+ImmediateAlertStrategy ..|> AlertStrategy
+DailyDigestStrategy ..|> AlertStrategy
+WeeklySummaryStrategy ..|> AlertStrategy
+
+}
+
+' ── Step 7 — Builder ─────────────────────────────────
+
+package "Report" {
+
+class ReportStep {
+  - builder : ReportBuilder
+  # run() : void
+}
+
+interface ReportBuilder {
+  + addClientReport() : ReportBuilder
+  + addExecDashboard() : ReportBuilder
+  + addExport(format : ExportFormat) : ReportBuilder
+  + build() : Report
+}
+
+class WhiteLabelReportBuilder
+class Report
+
+enum ExportFormat {
+  SHEETS
+  LOOKER
+  BIGQUERY
+  API
+}
+
+ReportStep --|> StepBase
+ReportStep --> ReportBuilder
+WhiteLabelReportBuilder ..|> ReportBuilder
+ReportBuilder --> Report
+ReportBuilder --> ExportFormat
+
+}
+
+@enduml
