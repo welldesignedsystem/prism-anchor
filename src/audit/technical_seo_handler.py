@@ -5,6 +5,8 @@ import os
 from urllib.parse import urljoin, urlparse
 
 import httpx
+import dotenv
+dotenv.load_dotenv()
 from bs4 import BeautifulSoup
 
 from src.core import WorkflowContext
@@ -21,7 +23,7 @@ _PAGESPEED_KEY = os.getenv("PAGESPEED_API_KEY", "")
 
 # Timeouts (seconds)
 _CONNECT_TIMEOUT  = 5.0
-_REQUEST_TIMEOUT  = 15.0
+_REQUEST_TIMEOUT  = 100.0
 
 
 class TechnicalSEOHandler(AuditHandler):
@@ -38,8 +40,9 @@ class TechnicalSEOHandler(AuditHandler):
     Short-circuits the audit chain if overall score < PASS_THRESHOLD.
     """
 
-    PASS_THRESHOLD:      float = 40.0
-    MAX_LINKS_TO_CHECK:  int   = 50     # cap to avoid long audit times
+    PASS_THRESHOLD:         float = 40.0  # Overall audit score threshold
+    SPEED_SCORE_THRESHOLD:  float = 40.0  # Minimum acceptable PageSpeed score (0-100)
+    MAX_LINKS_TO_CHECK:     int   = 50    # cap to avoid long audit times
 
     # ── Template entry point ───────────────────────────────────────────────────
 
@@ -54,7 +57,7 @@ class TechnicalSEOHandler(AuditHandler):
         broken_links = self._check_broken_links(ctx.domain)
 
         # ── Speed ──────────────────────────────────────────────────────────────
-        if speed_score < 50:
+        if speed_score < self.SPEED_SCORE_THRESHOLD:
             findings.append(f"Page speed score is low: {speed_score:.0f}/100")
             checks["speed"] = False
         else:
@@ -112,7 +115,6 @@ class TechnicalSEOHandler(AuditHandler):
                 resp = client.get(_PAGESPEED_API, params=params)
                 resp.raise_for_status()
                 data = resp.json()
-
             # Score lives at lighthouseResult.categories.performance.score (0–1)
             score = (
                 data
@@ -247,3 +249,92 @@ class TechnicalSEOHandler(AuditHandler):
             "[TechnicalSEOHandler] Broken links found: %d", len(broken)
         )
         return broken
+
+
+# ── Example usage ──────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    """
+    Example: Run TechnicalSEOHandler against real websites.
+    
+    Usage:
+        python -m src.audit.technical_seo_handler
+    
+    This example demonstrates:
+    - Direct handler instantiation
+    - Real HTTP requests to actual websites
+    - Complete audit workflow
+    - Result formatting and output
+    """
+    import json
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] %(name)s: %(message)s"
+    )
+
+    # Test domains
+    test_domains = [
+        # "example.com",
+        # "google.com",
+        "apacrelocation.com",
+    ]
+
+    handler = TechnicalSEOHandler()
+
+    print("\n" + "=" * 80)
+    print("TechnicalSEOHandler — Real Website Audit Example")
+    print("=" * 80)
+
+    for domain in test_domains:
+        print(f"\n{'─' * 80}")
+        print(f"Auditing: {domain}")
+        print(f"{'─' * 80}")
+
+        # Create a mock context (normally passed from SetupStep)
+        ctx = WorkflowContext(domain=domain, queries=[f"{domain} example"])
+
+        # Run the audit
+        result = handler._handle(ctx)
+
+        # Display results
+        print(f"\n✓ Handler:       {result.handler}")
+        print(f"✓ Passed:        {result.passed}")
+        print(f"✓ Score:         {result.score:.1f}/100")
+
+        print(f"\nChecks:")
+        for check_name, check_passed in result.metadata["checks"].items():
+            status = "✓" if check_passed else "✗"
+            print(f"  {status} {check_name.capitalize()}: {check_passed}")
+
+        print(f"\nMetadata:")
+        print(f"  • Speed Score:  {result.metadata['speed_score']:.1f}")
+        print(f"  • Has Sitemap:  {result.metadata['has_sitemap']}")
+        print(f"  • Broken Links: {len(result.metadata['broken_links'])}")
+
+        if result.findings:
+            print(f"\nFindings ({len(result.findings)}):")
+            for finding in result.findings:
+                print(f"  ⚠ {finding}")
+        else:
+            print(f"\nFindings: None")
+
+        print(f"\nResult JSON:")
+        result_dict = {
+            "handler": result.handler,
+            "passed": result.passed,
+            "score": result.score,
+            "findings": result.findings,
+            "metadata": {
+                "speed_score": result.metadata["speed_score"],
+                "has_sitemap": result.metadata["has_sitemap"],
+                "broken_links_count": len(result.metadata["broken_links"]),
+                "checks": result.metadata["checks"],
+            }
+        }
+        print(json.dumps(result_dict, indent=2))
+
+    print(f"\n{'=' * 80}")
+    print("Audit Complete")
+    print(f"{'=' * 80}\n")
+
