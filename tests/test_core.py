@@ -23,6 +23,7 @@ class TestEnums:
         assert CrawlFrequency.DAILY.value == "daily"
         assert CrawlFrequency.SIX_HOURLY.value == "6h"
         assert CrawlFrequency.HOURLY.value == "1h"
+        assert CrawlFrequency.AD_HOC.value == "ad-hoc"
 
     def test_ai_engine_values(self):
         assert AIEngine.PERPLEXITY.value == "perplexity"

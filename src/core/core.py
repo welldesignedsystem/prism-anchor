@@ -24,6 +24,7 @@ class CrawlFrequency(Enum):
     DAILY       = "daily"
     SIX_HOURLY  = "6h"
     HOURLY      = "1h"
+    AD_HOC      = "ad-hoc"
 
 
 class AIEngine(Enum):
