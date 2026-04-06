@@ -31,14 +31,14 @@ WorkflowOrchestrator "1" *-- "many" StepBase : steps
 WorkflowOrchestrator --> WorkflowContext
 StepBase --> WorkflowContext
 
-}
-
-note right of Core
+note right
   Core orchestration framework providing:
   - WorkflowOrchestrator: Manages step execution
   - StepBase: Template method pattern for steps
   - WorkflowContext: Shared data container
 end note
+
+}
 
 ' ── Step 1 — Chain of Responsibility ────────────────
 
@@ -68,9 +68,7 @@ QueryHandler --|> ConfigHandler
 EngineHandler --|> ConfigHandler
 FrequencyHandler --|> ConfigHandler
 
-}
-
-note right of "Setup (Step 1)"
+note right
   Setup Step: Validates and configures project settings
   - Domain normalization and validation
   - Query deduplication and validation
@@ -78,6 +76,8 @@ note right of "Setup (Step 1)"
   - Crawl frequency configuration
   Uses Chain of Responsibility pattern
 end note
+
+}
 
 ' ── Step 2 — Chain of Responsibility + short-circuit ─
 
@@ -105,15 +105,15 @@ CrawlerAuditHandler --|> AuditHandler
 TechnicalSEOHandler --|> AuditHandler
 ContentAuditHandler --|> AuditHandler
 
-}
-
-note right of "Audit (Step 2)"
+note right
   Audit Step: Performs initial technical audits
   - CrawlerAuditHandler: Checks if AI bots can access site
   - TechnicalSEOHandler: Validates speed, sitemap, broken links
   - ContentAuditHandler: Analyzes content for AEO/GEO potential
   Uses Chain of Responsibility with short-circuiting
 end note
+
+}
 
 ' ── Step 3 — Observer ────────────────────────────────
 
@@ -142,9 +142,7 @@ AEOTracker ..|> VisibilityTracker
 SEORankTracker ..|> VisibilityTracker
 VoiceSearchTracker ..|> VisibilityTracker
 
-}
-
-note right of "Monitor (Step 3)"
+note right
   Monitor Step: Tracks AI engine visibility continuously
   - GEOTracker: Monitors citations in AI search results
   - AEOTracker: Tracks snippet and PAA box ownership
@@ -152,6 +150,8 @@ note right of "Monitor (Step 3)"
   - VoiceSearchTracker: Tracks spoken answer presence
   Uses Observer pattern for real-time updates
 end note
+
+}
 
 ' ── Step 4 — Composite ───────────────────────────────
 
@@ -186,9 +186,7 @@ AEOScore ..|> ScoreComponent
 SEOScore ..|> ScoreComponent
 CompetitorShareScore ..|> ScoreComponent
 
-}
-
-note right of "Score (Step 4)"
+note right
   Score Step: Computes visibility scores and metrics
   - GEOScore: Calculates AI citation frequency (0-100)
   - AEOScore: Measures snippet/PAA box win rates
@@ -196,6 +194,8 @@ note right of "Score (Step 4)"
   - CompetitorShareScore: Compares citations vs competitors
   Uses Composite pattern for hierarchical scoring
 end note
+
+}
 
 ' ── Step 5 — Strategy (fan-out) ──────────────────────
 
@@ -223,9 +223,7 @@ BriefGeneratorStrategy ..|> OptimisationStrategy
 FAQGeneratorStrategy ..|> OptimisationStrategy
 SchemaBuilderStrategy ..|> OptimisationStrategy
 
-}
-
-note right of "Optimise (Step 5)"
+note right
   Optimise Step: Generates content optimization suggestions
   - ContentAnalyser: Scores pages and identifies gaps
   - BriefGeneratorStrategy: Creates answer-first content briefs
@@ -233,6 +231,8 @@ note right of "Optimise (Step 5)"
   - SchemaBuilderStrategy: Generates JSON-LD markup
   Uses Strategy pattern with fan-out execution
 end note
+
+}
 
 ' ── Step 6 — Strategy (routing) ──────────────────────
 
@@ -262,15 +262,15 @@ ImmediateAlertStrategy ..|> AlertStrategy
 DailyDigestStrategy ..|> AlertStrategy
 WeeklySummaryStrategy ..|> AlertStrategy
 
-}
-
-note right of "Alert (Step 6)"
+note right
   Alert Step: Routes alerts based on severity and timing
   - ImmediateAlertStrategy: Critical alerts (Slack + Email)
   - DailyDigestStrategy: Moderate changes (Email)
   - WeeklySummaryStrategy: Positive trends (Email)
   Uses Strategy pattern with routing logic
 end note
+
+}
 
 ' ── Step 7 — Builder ─────────────────────────────────
 
@@ -304,14 +304,14 @@ WhiteLabelReportBuilder ..|> ReportBuilder
 ReportBuilder --> Report
 ReportBuilder --> ExportFormat
 
-}
-
-note right of "Report (Step 7)"
+note right
   Report Step: Generates comprehensive reports and exports
   - WhiteLabelReportBuilder: Creates branded client PDFs
   - Executive Dashboard: GEO/AEO/SEO scores overview
   - Export formats: Sheets, Looker Studio, BigQuery, API
   Uses Builder pattern for flexible report construction
 end note
+
+}
 
 @enduml
