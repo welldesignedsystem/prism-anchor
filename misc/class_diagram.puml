@@ -2,15 +2,14 @@
 
 package "Core" {
 
-' ── Core orchestration ───────────────────────────────
-
 abstract class WorkflowOrchestrator {
   + steps : List<StepBase>
   + run() : void
   + runLoop() : void
   + triggerStep(step : StepBase) : void
+  ..
+  Manages the execution of workflow steps
 }
-note right of WorkflowOrchestrator : Manages the execution of workflow steps
 
 abstract class StepBase {
   # context : WorkflowContext
@@ -19,58 +18,61 @@ abstract class StepBase {
   # {abstract} run() : void
   # {abstract} validate() : void
   # teardown() : void
+  ..
+  Template method base class for all workflow steps
 }
-note right of StepBase : Template method base class for all workflow steps
 
 class WorkflowContext {
   + domain : String
   + queries : List<String>
   + results : Map<String, Object>
   + sharedState : Map<String, Object>
+  ..
+  Shared data container passed between steps
 }
-note right of WorkflowContext : Shared data container passed between steps
 
 WorkflowOrchestrator "1" *-- "many" StepBase : steps
 WorkflowOrchestrator --> WorkflowContext
 StepBase --> WorkflowContext
 
-note right
-  Core orchestration framework providing:
-  - WorkflowOrchestrator: Manages step execution
-  - StepBase: Template method pattern for steps
-  - WorkflowContext: Shared data container
-end note
-
 }
-
-' ── Step 1 — Chain of Responsibility ────────────────
 
 package "Setup (Step 1)" {
 
 class SetupStep {
   - chain : ConfigHandler
   # run() : void
+  ..
+  Orchestrates configuration validation chain\nUses Chain of Responsibility pattern
 }
-note right of SetupStep : Orchestrates configuration validation chain
 
 abstract class ConfigHandler {
   # next : ConfigHandler
   + {abstract} handle(ctx : WorkflowContext) : void
   + setNext(h : ConfigHandler) : ConfigHandler
+  ..
+  Abstract base for configuration handlers
 }
-note right of ConfigHandler : Abstract base for configuration handlers
 
-class DomainHandler
-note right of DomainHandler : Normalizes and validates domain names
+class DomainHandler {
+  ..
+  Normalizes and validates domain names
+}
 
-class QueryHandler
-note right of QueryHandler : Validates and deduplicates search queries
+class QueryHandler {
+  ..
+  Validates and deduplicates search queries
+}
 
-class EngineHandler
-note right of EngineHandler : Validates AI engine selection
+class EngineHandler {
+  ..
+  Validates AI engine selection
+}
 
-class FrequencyHandler
-note right of FrequencyHandler : Validates crawl frequency settings
+class FrequencyHandler {
+  ..
+  Validates crawl frequency settings
+}
 
 SetupStep --|> StepBase
 SetupStep --> ConfigHandler
@@ -80,42 +82,39 @@ QueryHandler --|> ConfigHandler
 EngineHandler --|> ConfigHandler
 FrequencyHandler --|> ConfigHandler
 
-note right
-  Setup Step: Validates and configures project settings
-  - Domain normalization and validation
-  - Query deduplication and validation
-  - AI engine selection
-  - Crawl frequency configuration
-  Uses Chain of Responsibility pattern
-end note
-
 }
-
-' ── Step 2 — Chain of Responsibility + short-circuit ─
 
 package "Audit (Step 2)" {
 
 class AuditStep {
   - chain : AuditHandler
   # run() : void
+  ..
+  Orchestrates technical audit chain\nUses Chain of Responsibility with short-circuiting
 }
-note right of AuditStep : Orchestrates technical audit chain
 
 abstract class AuditHandler {
   # next : AuditHandler
   + {abstract} handle(ctx : WorkflowContext) : Boolean
   + setNext(h : AuditHandler) : AuditHandler
+  ..
+  Abstract base for audit handlers
 }
-note right of AuditHandler : Abstract base for audit handlers
 
-class CrawlerAuditHandler
-note right of CrawlerAuditHandler : Checks AI bot accessibility
+class CrawlerAuditHandler {
+  ..
+  Checks if AI bots can access site
+}
 
-class TechnicalSEOHandler
-note right of TechnicalSEOHandler : Validates technical SEO elements
+class TechnicalSEOHandler {
+  ..
+  Validates speed, sitemap, broken links
+}
 
-class ContentAuditHandler
-note right of ContentAuditHandler : Analyzes content for AI optimization
+class ContentAuditHandler {
+  ..
+  Analyzes content for AEO/GEO potential
+}
 
 AuditStep --|> StepBase
 AuditStep --> AuditHandler
@@ -124,17 +123,7 @@ CrawlerAuditHandler --|> AuditHandler
 TechnicalSEOHandler --|> AuditHandler
 ContentAuditHandler --|> AuditHandler
 
-note right
-  Audit Step: Performs initial technical audits
-  - CrawlerAuditHandler: Checks if AI bots can access site
-  - TechnicalSEOHandler: Validates speed, sitemap, broken links
-  - ContentAuditHandler: Analyzes content for AEO/GEO potential
-  Uses Chain of Responsibility with short-circuiting
-end note
-
 }
-
-' ── Step 3 — Observer ────────────────────────────────
 
 package "Monitor (Step 3)" {
 
@@ -143,25 +132,35 @@ class MonitorStep {
   # run() : void
   + subscribe(t : VisibilityTracker) : void
   + notify(event : TrackingEvent) : void
+  ..
+  Manages visibility tracking observers\nUses Observer pattern for real-time updates
 }
-note right of MonitorStep : Manages visibility tracking observers
 
 interface VisibilityTracker {
   + onUpdate(event : TrackingEvent) : void
+  ..
+  Interface for tracking components
 }
-note right of VisibilityTracker : Interface for tracking components
 
-class GEOTracker
-note right of GEOTracker : Tracks AI search result citations
+class GEOTracker {
+  ..
+  Monitors citations in AI search results
+}
 
-class AEOTracker
-note right of AEOTracker : Tracks snippet and PAA ownership
+class AEOTracker {
+  ..
+  Tracks snippet and PAA box ownership
+}
 
-class SEORankTracker
-note right of SEORankTracker : Tracks organic search rankings
+class SEORankTracker {
+  ..
+  Monitors organic search rankings
+}
 
-class VoiceSearchTracker
-note right of VoiceSearchTracker : Tracks voice search answers
+class VoiceSearchTracker {
+  ..
+  Tracks spoken answer presence
+}
 
 MonitorStep --|> StepBase
 MonitorStep "1" o-- "many" VisibilityTracker
@@ -170,50 +169,50 @@ AEOTracker ..|> VisibilityTracker
 SEORankTracker ..|> VisibilityTracker
 VoiceSearchTracker ..|> VisibilityTracker
 
-note right
-  Monitor Step: Tracks AI engine visibility continuously
-  - GEOTracker: Monitors citations in AI search results
-  - AEOTracker: Tracks snippet and PAA box ownership
-  - SEORankTracker: Monitors organic search rankings
-  - VoiceSearchTracker: Tracks spoken answer presence
-  Uses Observer pattern for real-time updates
-end note
-
 }
-
-' ── Step 4 — Composite ───────────────────────────────
 
 package "Score (Step 4)" {
 
 class ScoreStep {
   - root : ScoreComponent
   # run() : void
+  ..
+  Orchestrates score computation\nUses Composite pattern for hierarchical scoring
 }
-note right of ScoreStep : Orchestrates score computation
 
 interface ScoreComponent {
   + compute(ctx : WorkflowContext) : ScoreResult
+  ..
+  Interface for score calculators
 }
-note right of ScoreComponent : Interface for score calculators
 
 class CompositeScore {
   - children : List<ScoreComponent>
   + add(c : ScoreComponent) : void
   + compute(ctx : WorkflowContext) : ScoreResult
+  ..
+  Aggregates child score components
 }
-note right of CompositeScore : Composite score aggregator
 
-class GEOScore
-note right of GEOScore : Calculates citation frequency scores
+class GEOScore {
+  ..
+  Calculates AI citation frequency (0-100)
+}
 
-class AEOScore
-note right of AEOScore : Calculates snippet win rates
+class AEOScore {
+  ..
+  Measures snippet/PAA box win rates
+}
 
-class SEOScore
-note right of SEOScore : Evaluates organic ranking health
+class SEOScore {
+  ..
+  Evaluates organic ranking health
+}
 
-class CompetitorShareScore
-note right of CompetitorShareScore : Compares competitor citations
+class CompetitorShareScore {
+  ..
+  Compares citations vs competitors
+}
 
 ScoreStep --|> StepBase
 ScoreStep --> ScoreComponent
@@ -224,18 +223,7 @@ AEOScore ..|> ScoreComponent
 SEOScore ..|> ScoreComponent
 CompetitorShareScore ..|> ScoreComponent
 
-note right
-  Score Step: Computes visibility scores and metrics
-  - GEOScore: Calculates AI citation frequency (0-100)
-  - AEOScore: Measures snippet/PAA box win rates
-  - SEOScore: Evaluates organic ranking health
-  - CompetitorShareScore: Compares citations vs competitors
-  Uses Composite pattern for hierarchical scoring
-end note
-
 }
-
-' ── Step 5 — Strategy (fan-out) ──────────────────────
 
 package "Optimise (Step 5)" {
 
@@ -243,25 +231,35 @@ class OptimiseStep {
   - analyser : ContentAnalyser
   - strategies : List<OptimisationStrategy>
   # run() : void
+  ..
+  Orchestrates content optimization\nUses Strategy pattern with fan-out execution
 }
-note right of OptimiseStep : Orchestrates content optimization
 
 interface OptimisationStrategy {
   + optimise(analysis : ContentAnalysis) : OptimisationResult
+  ..
+  Interface for optimization strategies
 }
-note right of OptimisationStrategy : Interface for optimization strategies
 
-class ContentAnalyser
-note right of ContentAnalyser : Analyzes content gaps
+class ContentAnalyser {
+  ..
+  Scores pages and identifies content gaps
+}
 
-class BriefGeneratorStrategy
-note right of BriefGeneratorStrategy : Generates content briefs
+class BriefGeneratorStrategy {
+  ..
+  Creates answer-first content briefs
+}
 
-class FAQGeneratorStrategy
-note right of FAQGeneratorStrategy : Generates FAQ content
+class FAQGeneratorStrategy {
+  ..
+  Builds Q&As from PAA data
+}
 
-class SchemaBuilderStrategy
-note right of SchemaBuilderStrategy : Generates structured data
+class SchemaBuilderStrategy {
+  ..
+  Generates JSON-LD structured markup
+}
 
 OptimiseStep --|> StepBase
 OptimiseStep --> ContentAnalyser
@@ -270,45 +268,43 @@ BriefGeneratorStrategy ..|> OptimisationStrategy
 FAQGeneratorStrategy ..|> OptimisationStrategy
 SchemaBuilderStrategy ..|> OptimisationStrategy
 
-note right
-  Optimise Step: Generates content optimization suggestions
-  - ContentAnalyser: Scores pages and identifies gaps
-  - BriefGeneratorStrategy: Creates answer-first content briefs
-  - FAQGeneratorStrategy: Builds Q&As from PAA data
-  - SchemaBuilderStrategy: Generates JSON-LD markup
-  Uses Strategy pattern with fan-out execution
-end note
-
 }
-
-' ── Step 6 — Strategy (routing) ──────────────────────
 
 package "Alert (Step 6)" {
 
 class AlertStep {
   - router : AlertRouter
   # run() : void
+  ..
+  Orchestrates alert routing\nUses Strategy pattern with routing logic
 }
-note right of AlertStep : Orchestrates alert routing
 
 class AlertRouter {
   + route(alert : Alert) : AlertStrategy
+  ..
+  Routes alerts based on severity and timing
 }
-note right of AlertRouter : Routes alerts to strategies
 
 interface AlertStrategy {
   + dispatch(alert : Alert) : void
+  ..
+  Interface for alert dispatch
 }
-note right of AlertStrategy : Interface for alert dispatch
 
-class ImmediateAlertStrategy
-note right of ImmediateAlertStrategy : Handles critical alerts
+class ImmediateAlertStrategy {
+  ..
+  Critical alerts dispatched via Slack + Email
+}
 
-class DailyDigestStrategy
-note right of DailyDigestStrategy : Handles daily summaries
+class DailyDigestStrategy {
+  ..
+  Moderate changes dispatched via Email
+}
 
-class WeeklySummaryStrategy
-note right of WeeklySummaryStrategy : Handles weekly reports
+class WeeklySummaryStrategy {
+  ..
+  Positive trends dispatched via Email
+}
 
 AlertStep --|> StepBase
 AlertStep --> AlertRouter
@@ -317,61 +313,50 @@ ImmediateAlertStrategy ..|> AlertStrategy
 DailyDigestStrategy ..|> AlertStrategy
 WeeklySummaryStrategy ..|> AlertStrategy
 
-note right
-  Alert Step: Routes alerts based on severity and timing
-  - ImmediateAlertStrategy: Critical alerts (Slack + Email)
-  - DailyDigestStrategy: Moderate changes (Email)
-  - WeeklySummaryStrategy: Positive trends (Email)
-  Uses Strategy pattern with routing logic
-end note
-
 }
-
-' ── Step 7 — Builder ─────────────────────────────────
 
 package "Report (Step 7)" {
 
 class ReportStep {
   - builder : ReportBuilder
   # run() : void
+  ..
+  Orchestrates report generation\nUses Builder pattern for flexible construction
 }
-note right of ReportStep : Orchestrates report generation
 
 interface ReportBuilder {
   + addClientReport() : ReportBuilder
   + addExecDashboard() : ReportBuilder
   + addExport(format : ExportFormat) : ReportBuilder
   + build() : Report
+  ..
+  Interface for report building
 }
-note right of ReportBuilder : Interface for report building
 
-class WhiteLabelReportBuilder
-note right of WhiteLabelReportBuilder : Creates branded reports
+class WhiteLabelReportBuilder {
+  ..
+  Creates branded client PDFs
+}
 
-class Report
-note right of Report : Report data container
+class Report {
+  ..
+  Report data container
+}
 
 enum ExportFormat {
   SHEETS
   LOOKER
   BIGQUERY
   API
+  ..
+  Supported export formats
 }
-note right of ExportFormat : Supported export formats
 
 ReportStep --|> StepBase
 ReportStep --> ReportBuilder
 WhiteLabelReportBuilder ..|> ReportBuilder
 ReportBuilder --> Report
 ReportBuilder --> ExportFormat
-
-note right
-  Report Step: Generates comprehensive reports and exports
-  - WhiteLabelReportBuilder: Creates branded client PDFs
-  - Executive Dashboard: GEO/AEO/SEO scores overview
-  - Export formats: Sheets, Looker Studio, BigQuery, API
-  Uses Builder pattern for flexible report construction
-end note
 
 }
 
