@@ -4,7 +4,8 @@ import logging
 import urllib.robotparser
 import urllib.request
 from html.parser import HTMLParser
-
+import re
+import requests
 from src.core import WorkflowContext
 
 from src.audit import AuditHandler
@@ -38,7 +39,6 @@ class CrawlerAuditHandler(AuditHandler):
 
         # ── Stub: replace with real robots.txt fetch + parse ──────────────────
         robots_rules: dict[str, bool] = self._fetch_robots_txt(ctx.domain)
-
         for bot in self.KNOWN_AI_BOTS:
             if not robots_rules.get(bot, True):
                 blocked.append(bot)
@@ -69,31 +69,62 @@ class CrawlerAuditHandler(AuditHandler):
 
     def _fetch_robots_txt(self, domain: str) -> dict[str, bool]:
         """
-        Fetches and parses robots.txt, returning {bot_name: is_allowed}
+        Fetches and parses robots.txt manually using regex, returning {bot_name: is_allowed}
         for every bot in KNOWN_AI_BOTS.
-
-        Falls back to allowing all bots on any network/parse error so that
-        a missing or unreachable robots.txt never fails the audit unfairly.
         """
         robots_url = f"https://{domain}/robots.txt"
-        rp = urllib.robotparser.RobotFileParser(url=robots_url)
-
         try:
-            rp.read()                           # one HTTP GET, stdlib only
-        except Exception:
+            response = requests.get(robots_url, timeout=10)
+            response.raise_for_status()  # Raise an error for bad status codes (e.g., 404)
+        except requests.RequestException:
             logger.warning(
                 "[CrawlerAuditHandler] Could not fetch %s — assuming all allowed",
                 robots_url,
             )
-            return {bot: True for bot in self.KNOWN_AI_BOTS}
+            return {bot: False for bot in self.KNOWN_AI_BOTS}  # Assume all bots are allowed if fetch fails
 
-        # urllib.robotparser.can_fetch() requires a path, not just a domain.
-        # "/" covers the root; AI bots that care about a specific path would
-        # need a more targeted check — extend here as required.
-        return {
-            bot: rp.can_fetch(bot, f"https://{domain}/")
-            for bot in self.KNOWN_AI_BOTS
-        }
+        # Create a dictionary to hold whether each bot is allowed or not
+        allowed_bots = {}
+
+        # Regex to find all Disallow: and Allow: directives
+        disallow_pattern = re.compile(r"Disallow:\s*(.*)", re.IGNORECASE)
+        allow_pattern = re.compile(r"Allow:\s*(.*)", re.IGNORECASE)
+
+        # Split the robots.txt content into lines
+        robots_txt_lines = response.text.splitlines()
+
+        # Initialize a dictionary with default True (allowed) for all known bots
+        for bot in self.KNOWN_AI_BOTS:
+            allowed_bots[bot] = True  # Assume bots are allowed unless stated otherwise
+
+        # Parse each line of the robots.txt
+        for line in robots_txt_lines:
+            # If it's a comment or empty line, skip
+            if line.strip().startswith("#") or not line.strip():
+                continue
+
+            # Check for Disallow: and Allow: directives
+            disallow_match = disallow_pattern.match(line)
+            allow_match = allow_pattern.match(line)
+
+            # If a Disallow rule is found, check which bots it applies to
+            if disallow_match:
+                disallowed_path = disallow_match.group(1).strip().lower()
+                for bot in self.KNOWN_AI_BOTS:
+                    if bot.lower() in disallowed_path:
+                        allowed_bots[bot] = False  # Block this bot
+
+            # If an Allow rule is found, ensure it allows the bot
+            if allow_match:
+                allowed_path = allow_match.group(1).strip().lower()
+                for bot in self.KNOWN_AI_BOTS:
+                    if bot.lower() in allowed_path:
+                        allowed_bots[bot] = True  # Allow this bot
+
+        # Log the results of parsing
+        logger.info(f"Robots.txt parsed for {domain}: {allowed_bots}")
+
+        return allowed_bots
 
     def _check_meta_noindex(self, domain: str) -> bool:
         """
@@ -167,9 +198,10 @@ if __name__ == "__main__":
 
     # Test domains
     test_domains = [
-        # "example.com",
+        "example.com",
         # "google.com",
         "apacrelocation.com",
+        "welldesignedsystem.github.io",
     ]
 
     handler = CrawlerAuditHandler()
