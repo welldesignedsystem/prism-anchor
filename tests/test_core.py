@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import logging
 
 # Assuming src is in PYTHONPATH or installed; adjust import as needed
-from src.core.core import (
+from src.core import (
     StepStatus, CrawlFrequency, AIEngine,
     StepSkippedError, WorkflowAbortError,
     WorkflowContext, StepBase, WorkflowOrchestrator,
