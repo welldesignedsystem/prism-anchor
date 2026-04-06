@@ -10,6 +10,7 @@ abstract class WorkflowOrchestrator {
   + runLoop() : void
   + triggerStep(step : StepBase) : void
 }
+note right of WorkflowOrchestrator : Manages the execution of workflow steps
 
 abstract class StepBase {
   # context : WorkflowContext
@@ -19,6 +20,7 @@ abstract class StepBase {
   # {abstract} validate() : void
   # teardown() : void
 }
+note right of StepBase : Template method base class for all workflow steps
 
 class WorkflowContext {
   + domain : String
@@ -26,6 +28,7 @@ class WorkflowContext {
   + results : Map<String, Object>
   + sharedState : Map<String, Object>
 }
+note right of WorkflowContext : Shared data container passed between steps
 
 WorkflowOrchestrator "1" *-- "many" StepBase : steps
 WorkflowOrchestrator --> WorkflowContext
@@ -48,17 +51,26 @@ class SetupStep {
   - chain : ConfigHandler
   # run() : void
 }
+note right of SetupStep : Orchestrates configuration validation chain
 
 abstract class ConfigHandler {
   # next : ConfigHandler
   + {abstract} handle(ctx : WorkflowContext) : void
   + setNext(h : ConfigHandler) : ConfigHandler
 }
+note right of ConfigHandler : Abstract base for configuration handlers
 
 class DomainHandler
+note right of DomainHandler : Normalizes and validates domain names
+
 class QueryHandler
+note right of QueryHandler : Validates and deduplicates search queries
+
 class EngineHandler
+note right of EngineHandler : Validates AI engine selection
+
 class FrequencyHandler
+note right of FrequencyHandler : Validates crawl frequency settings
 
 SetupStep --|> StepBase
 SetupStep --> ConfigHandler
@@ -87,16 +99,23 @@ class AuditStep {
   - chain : AuditHandler
   # run() : void
 }
+note right of AuditStep : Orchestrates technical audit chain
 
 abstract class AuditHandler {
   # next : AuditHandler
   + {abstract} handle(ctx : WorkflowContext) : Boolean
   + setNext(h : AuditHandler) : AuditHandler
 }
+note right of AuditHandler : Abstract base for audit handlers
 
 class CrawlerAuditHandler
+note right of CrawlerAuditHandler : Checks AI bot accessibility
+
 class TechnicalSEOHandler
+note right of TechnicalSEOHandler : Validates technical SEO elements
+
 class ContentAuditHandler
+note right of ContentAuditHandler : Analyzes content for AI optimization
 
 AuditStep --|> StepBase
 AuditStep --> AuditHandler
@@ -125,15 +144,24 @@ class MonitorStep {
   + subscribe(t : VisibilityTracker) : void
   + notify(event : TrackingEvent) : void
 }
+note right of MonitorStep : Manages visibility tracking observers
 
 interface VisibilityTracker {
   + onUpdate(event : TrackingEvent) : void
 }
+note right of VisibilityTracker : Interface for tracking components
 
 class GEOTracker
+note right of GEOTracker : Tracks AI search result citations
+
 class AEOTracker
+note right of AEOTracker : Tracks snippet and PAA ownership
+
 class SEORankTracker
+note right of SEORankTracker : Tracks organic search rankings
+
 class VoiceSearchTracker
+note right of VoiceSearchTracker : Tracks voice search answers
 
 MonitorStep --|> StepBase
 MonitorStep "1" o-- "many" VisibilityTracker
@@ -161,21 +189,31 @@ class ScoreStep {
   - root : ScoreComponent
   # run() : void
 }
+note right of ScoreStep : Orchestrates score computation
 
 interface ScoreComponent {
   + compute(ctx : WorkflowContext) : ScoreResult
 }
+note right of ScoreComponent : Interface for score calculators
 
 class CompositeScore {
   - children : List<ScoreComponent>
   + add(c : ScoreComponent) : void
   + compute(ctx : WorkflowContext) : ScoreResult
 }
+note right of CompositeScore : Composite score aggregator
 
 class GEOScore
+note right of GEOScore : Calculates citation frequency scores
+
 class AEOScore
+note right of AEOScore : Calculates snippet win rates
+
 class SEOScore
+note right of SEOScore : Evaluates organic ranking health
+
 class CompetitorShareScore
+note right of CompetitorShareScore : Compares competitor citations
 
 ScoreStep --|> StepBase
 ScoreStep --> ScoreComponent
@@ -206,15 +244,24 @@ class OptimiseStep {
   - strategies : List<OptimisationStrategy>
   # run() : void
 }
+note right of OptimiseStep : Orchestrates content optimization
 
 interface OptimisationStrategy {
   + optimise(analysis : ContentAnalysis) : OptimisationResult
 }
+note right of OptimisationStrategy : Interface for optimization strategies
 
 class ContentAnalyser
+note right of ContentAnalyser : Analyzes content gaps
+
 class BriefGeneratorStrategy
+note right of BriefGeneratorStrategy : Generates content briefs
+
 class FAQGeneratorStrategy
+note right of FAQGeneratorStrategy : Generates FAQ content
+
 class SchemaBuilderStrategy
+note right of SchemaBuilderStrategy : Generates structured data
 
 OptimiseStep --|> StepBase
 OptimiseStep --> ContentAnalyser
@@ -242,18 +289,26 @@ class AlertStep {
   - router : AlertRouter
   # run() : void
 }
+note right of AlertStep : Orchestrates alert routing
 
 class AlertRouter {
   + route(alert : Alert) : AlertStrategy
 }
+note right of AlertRouter : Routes alerts to strategies
 
 interface AlertStrategy {
   + dispatch(alert : Alert) : void
 }
+note right of AlertStrategy : Interface for alert dispatch
 
 class ImmediateAlertStrategy
+note right of ImmediateAlertStrategy : Handles critical alerts
+
 class DailyDigestStrategy
+note right of DailyDigestStrategy : Handles daily summaries
+
 class WeeklySummaryStrategy
+note right of WeeklySummaryStrategy : Handles weekly reports
 
 AlertStep --|> StepBase
 AlertStep --> AlertRouter
@@ -280,6 +335,7 @@ class ReportStep {
   - builder : ReportBuilder
   # run() : void
 }
+note right of ReportStep : Orchestrates report generation
 
 interface ReportBuilder {
   + addClientReport() : ReportBuilder
@@ -287,9 +343,13 @@ interface ReportBuilder {
   + addExport(format : ExportFormat) : ReportBuilder
   + build() : Report
 }
+note right of ReportBuilder : Interface for report building
 
 class WhiteLabelReportBuilder
+note right of WhiteLabelReportBuilder : Creates branded reports
+
 class Report
+note right of Report : Report data container
 
 enum ExportFormat {
   SHEETS
@@ -297,6 +357,7 @@ enum ExportFormat {
   BIGQUERY
   API
 }
+note right of ExportFormat : Supported export formats
 
 ReportStep --|> StepBase
 ReportStep --> ReportBuilder
