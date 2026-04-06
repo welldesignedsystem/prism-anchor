@@ -43,8 +43,6 @@ class _ContentParser(HTMLParser):
         self._script_type: str        = ""
         self._buf:         list[str]  = []
 
-    # ── tag open ──────────────────────────────────────────────────────────────
-
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr = dict(attrs)
 
@@ -76,13 +74,11 @@ class _ContentParser(HTMLParser):
                 self._in_script   = True
                 self._script_type = "other"
 
-    # ── tag close ─────────────────────────────────────────────────────────────
-
     def handle_endtag(self, tag: str) -> None:
         text = "".join(self._buf).strip()
 
         if tag == "title" and self._in_title:
-            self.title    = text
+            self.title     = text
             self._in_title = False
             self._buf.clear()
 
@@ -111,8 +107,6 @@ class _ContentParser(HTMLParser):
             self._script_type = ""
             self._buf.clear()
 
-    # ── data ──────────────────────────────────────────────────────────────────
-
     def handle_data(self, data: str) -> None:
         if self._in_title or self._in_heading or self._in_para or (
             self._in_script and self._script_type == "jsonld"
@@ -120,28 +114,87 @@ class _ContentParser(HTMLParser):
             self._buf.append(data)
 
 
+# ── Score breakdown dataclass ──────────────────────────────────────────────────
+
+class _ScoreBreakdown:
+    """
+    Holds per-signal scores and recommendations for a single query audit.
+    """
+
+    def __init__(self) -> None:
+        self.aeo_signals: list[dict] = []   # {signal, earned, max, passed, fix}
+        self.geo_signals: list[dict] = []   # {signal, earned, max, passed, fix}
+
+    def add_aeo(
+        self,
+        signal:  str,
+        earned:  float,
+        max_pts: float,
+        passed:  bool,
+        fix:     str,
+    ) -> None:
+        self.aeo_signals.append({
+            "signal": signal,
+            "earned": earned,
+            "max":    max_pts,
+            "passed": passed,
+            "fix":    fix if not passed else "",
+        })
+
+    def add_geo(
+        self,
+        signal:  str,
+        earned:  float,
+        max_pts: float,
+        passed:  bool,
+        fix:     str,
+    ) -> None:
+        self.geo_signals.append({
+            "signal": signal,
+            "earned": earned,
+            "max":    max_pts,
+            "passed": passed,
+            "fix":    fix if not passed else "",
+        })
+
+    @property
+    def aeo_score(self) -> float:
+        return min(sum(s["earned"] for s in self.aeo_signals), 100.0)
+
+    @property
+    def geo_score(self) -> float:
+        return min(sum(s["earned"] for s in self.geo_signals), 100.0)
+
+    @property
+    def aeo_recommendations(self) -> list[str]:
+        return [s["fix"] for s in self.aeo_signals if s["fix"]]
+
+    @property
+    def geo_recommendations(self) -> list[str]:
+        return [s["fix"] for s in self.geo_signals if s["fix"]]
+
+    @property
+    def aeo_missing_pts(self) -> float:
+        return sum(s["max"] - s["earned"] for s in self.aeo_signals)
+
+    @property
+    def geo_missing_pts(self) -> float:
+        return sum(s["max"] - s["earned"] for s in self.geo_signals)
+
+
 # ── Concrete handler ───────────────────────────────────────────────────────────
 
 class ContentAuditHandler(AuditHandler):
     """
     B3 — Content Audit.
-    Scores each tracked query's landing page for AEO and GEO readiness.
+    Scores each tracked query's landing page for AEO and GEO readiness,
+    and produces per-signal recommendations to reach 100/100.
 
     AEO (Answer Engine Optimisation) — signals that help a page win
-    featured snippets, PAA boxes, and voice answers:
-      • Direct question/answer structure in headings
-      • FAQ / HowTo schema markup
-      • Concise meta description
-      • Sufficient word count
-      • Query keyword presence in title + headings
+    featured snippets, PAA boxes, and voice answers.
 
     GEO (Generative Engine Optimisation) — signals that help a page
-    get cited by AI-generated answers:
-      • JSON-LD structured data
-      • Paragraph depth (more citable passages)
-      • Clear, descriptive title
-      • Heading hierarchy (h1–h3 coverage)
-      • Query keyword density in body text
+    get cited by AI-generated answers.
     """
 
     PASS_THRESHOLD: float = 50.0
@@ -153,19 +206,25 @@ class ContentAuditHandler(AuditHandler):
         page_scores: list[dict] = []
 
         for query in ctx.queries:
-            aeo_score, geo_score = self._score_content(ctx.domain, query)
+            breakdown = self._score_content(ctx.domain, query)
+
             page_scores.append({
-                "query":     query,
-                "aeo_score": aeo_score,
-                "geo_score": geo_score,
+                "query":              query,
+                "aeo_score":          breakdown.aeo_score,
+                "geo_score":          breakdown.geo_score,
+                "aeo_signals":        breakdown.aeo_signals,
+                "geo_signals":        breakdown.geo_signals,
+                "aeo_recommendations": breakdown.aeo_recommendations,
+                "geo_recommendations": breakdown.geo_recommendations,
             })
-            if aeo_score < 50:
+
+            if breakdown.aeo_score < 50:
                 findings.append(
-                    f"Low AEO score ({aeo_score:.0f}) for query: {query!r}"
+                    f"Low AEO score ({breakdown.aeo_score:.0f}) for query: {query!r}"
                 )
-            if geo_score < 50:
+            if breakdown.geo_score < 50:
                 findings.append(
-                    f"Low GEO score ({geo_score:.0f}) for query: {query!r}"
+                    f"Low GEO score ({breakdown.geo_score:.0f}) for query: {query!r}"
                 )
 
         avg_aeo = sum(p["aeo_score"] for p in page_scores) / len(page_scores)
@@ -191,24 +250,34 @@ class ContentAuditHandler(AuditHandler):
 
     # ── Scoring ────────────────────────────────────────────────────────────────
 
-    def _score_content(self, domain: str, query: str) -> tuple[float, float]:
+    def _score_content(self, domain: str, query: str) -> _ScoreBreakdown:
         """
         Fetches the domain homepage and scores it against the query.
-        Returns (aeo_score, geo_score) each in range [0, 100].
+        Returns a _ScoreBreakdown with per-signal detail and recommendations.
         """
         parsed = self._fetch_and_parse(domain)
+        bd     = _ScoreBreakdown()
+
         if parsed is None:
             logger.warning(
                 "[ContentAuditHandler] Could not fetch %s — returning zero scores",
                 domain,
             )
-            return 0.0, 0.0
+            # Populate all signals as failed so recommendations are complete
+            self._compute_aeo(bd, _ContentParser(), query)
+            self._compute_geo(bd, _ContentParser(), query)
+            return bd
 
-        aeo = self._compute_aeo(parsed, query)
-        geo = self._compute_geo(parsed, query)
-        return aeo, geo
+        self._compute_aeo(bd, parsed, query)
+        self._compute_geo(bd, parsed, query)
+        return bd
 
-    def _compute_aeo(self, p: _ContentParser, query: str) -> float:
+    def _compute_aeo(
+        self,
+        bd:    _ScoreBreakdown,
+        p:     _ContentParser,
+        query: str,
+    ) -> None:
         """
         AEO score — answer-engine readiness.
 
@@ -223,32 +292,98 @@ class ContentAuditHandler(AuditHandler):
         ─────────────────────────────── ───────
         Total                               100
         """
-        score    = 0.0
         keywords = self._keywords(query)
 
-        if p.description:
-            score += 15.0
+        # Meta description
+        has_desc = bool(p.description)
+        bd.add_aeo(
+            signal  = "Meta description present",
+            earned  = 15.0 if has_desc else 0.0,
+            max_pts = 15.0,
+            passed  = has_desc,
+            fix     = (
+                "Add a <meta name=\"description\"> tag (150–160 chars) that "
+                "directly answers what the page is about. Include primary keywords."
+            ),
+        )
 
-        if self._text_contains_any(p.title, keywords):
-            score += 20.0
+        # Query keyword in title
+        kw_in_title = self._text_contains_any(p.title, keywords)
+        bd.add_aeo(
+            signal  = "Query keyword in title",
+            earned  = 20.0 if kw_in_title else 0.0,
+            max_pts = 20.0,
+            passed  = kw_in_title,
+            fix     = (
+                f"Include at least one query keyword ({', '.join(keywords[:3])}) "
+                f"in the <title> tag. Current title: {p.title!r}"
+            ),
+        )
 
-        if any(self._text_contains_any(h, keywords) for h in p.headings):
-            score += 20.0
+        # Query keyword in heading
+        kw_in_heading = any(self._text_contains_any(h, keywords) for h in p.headings)
+        bd.add_aeo(
+            signal  = "Query keyword in any heading",
+            earned  = 20.0 if kw_in_heading else 0.0,
+            max_pts = 20.0,
+            passed  = kw_in_heading,
+            fix     = (
+                f"Add an H1 or H2 that contains a query keyword "
+                f"({', '.join(keywords[:3])}). "
+                f"Current headings: {p.headings[:3]}"
+            ),
+        )
 
-        if p.has_faq:
-            score += 20.0
+        # FAQ schema
+        bd.add_aeo(
+            signal  = "FAQ schema (FAQPage JSON-LD)",
+            earned  = 20.0 if p.has_faq else 0.0,
+            max_pts = 20.0,
+            passed  = p.has_faq,
+            fix     = (
+                "Add FAQPage schema markup (JSON-LD) with at least 3 Q&A pairs "
+                "relevant to the query. This directly targets PAA boxes and "
+                "voice search answers."
+            ),
+        )
 
-        if p.has_howto:
-            score += 10.0
+        # HowTo schema
+        bd.add_aeo(
+            signal  = "HowTo schema (HowTo JSON-LD)",
+            earned  = 10.0 if p.has_howto else 0.0,
+            max_pts = 10.0,
+            passed  = p.has_howto,
+            fix     = (
+                "Add HowTo schema markup (JSON-LD) if the page describes a "
+                "process or steps. Captures how-to rich results in AI engines."
+            ),
+        )
 
+        # Word count
         if p.word_count >= 300:
-            score += 15.0
+            wc_earned, wc_passed = 15.0, True
         elif p.word_count >= 150:
-            score += 7.0
+            wc_earned, wc_passed = 7.0, False
+        else:
+            wc_earned, wc_passed = 0.0, False
 
-        return min(score, 100.0)
+        bd.add_aeo(
+            signal  = f"Word count ≥ 300 (current: {p.word_count})",
+            earned  = wc_earned,
+            max_pts = 15.0,
+            passed  = wc_passed,
+            fix     = (
+                f"Increase body content to at least 300 words (currently {p.word_count}). "
+                "Aim for 500+ words with direct answers near the top of the page."
+            ),
+        )
 
-    def _compute_geo(self, p: _ContentParser, query: str) -> float:
+    def _compute_geo(
+        self,
+        bd:    _ScoreBreakdown,
+        p:     _ContentParser,
+        query: str,
+    ) -> None:
         """
         GEO score — generative-engine citability.
 
@@ -263,40 +398,103 @@ class ContentAuditHandler(AuditHandler):
         ─────────────────────────────── ───────
         Total                               100
         """
-        score    = 0.0
         keywords = self._keywords(query)
 
-        if p.has_jsonld:
-            score += 25.0
+        # JSON-LD
+        bd.add_geo(
+            signal  = "JSON-LD structured data present",
+            earned  = 25.0 if p.has_jsonld else 0.0,
+            max_pts = 25.0,
+            passed  = p.has_jsonld,
+            fix     = (
+                "Add JSON-LD structured data. Start with Organization or "
+                "LocalBusiness schema, then add FAQPage or Article as appropriate. "
+                "AI engines use structured data to verify and cite facts."
+            ),
+        )
 
-        title_words = len(p.title.split())
-        if title_words >= 5:
-            score += 15.0
-        elif title_words >= 3:
-            score += 7.0
+        # Descriptive title
+        title_words  = len(p.title.split())
+        title_passed = title_words >= 5
+        title_earned = 15.0 if title_words >= 5 else (7.0 if title_words >= 3 else 0.0)
+        bd.add_geo(
+            signal  = f"Descriptive title ≥ 5 words (current: {title_words} words)",
+            earned  = title_earned,
+            max_pts = 15.0,
+            passed  = title_passed,
+            fix     = (
+                f"Expand the page title to at least 5 descriptive words. "
+                f"Current title: {p.title!r}. "
+                "A descriptive title helps AI engines understand and cite the page."
+            ),
+        )
 
-        heading_count = len(p.headings)
-        if heading_count >= 3:
-            score += 15.0
-        elif heading_count >= 1:
-            score += 7.0
+        # Heading count
+        heading_count  = len(p.headings)
+        heading_passed = heading_count >= 3
+        heading_earned = 15.0 if heading_count >= 3 else (7.0 if heading_count >= 1 else 0.0)
+        bd.add_geo(
+            signal  = f"≥ 3 headings (current: {heading_count})",
+            earned  = heading_earned,
+            max_pts = 15.0,
+            passed  = heading_passed,
+            fix     = (
+                f"Add more H2/H3 headings to structure the content "
+                f"(currently {heading_count}). "
+                "Each heading should introduce a distinct subtopic or answer. "
+                "AI engines use headings to extract citable sections."
+            ),
+        )
 
-        para_count = len(p.paragraphs)
-        if para_count >= 5:
-            score += 15.0
-        elif para_count >= 2:
-            score += 7.0
+        # Paragraph count
+        para_count  = len(p.paragraphs)
+        para_passed = para_count >= 5
+        para_earned = 15.0 if para_count >= 5 else (7.0 if para_count >= 2 else 0.0)
+        bd.add_geo(
+            signal  = f"≥ 5 paragraphs (current: {para_count})",
+            earned  = para_earned,
+            max_pts = 15.0,
+            passed  = para_passed,
+            fix     = (
+                f"Add more paragraph-level content (currently {para_count} <p> tags). "
+                "Each paragraph should make one clear, citable claim. "
+                "AI engines pull citations from individual paragraphs."
+            ),
+        )
 
-        body = " ".join(p.paragraphs).lower()
-        if self._text_contains_any(body, keywords):
-            score += 20.0
+        # Keyword in body
+        body      = " ".join(p.paragraphs).lower()
+        kw_in_body = self._text_contains_any(body, keywords)
+        bd.add_geo(
+            signal  = "Query keyword in body paragraphs",
+            earned  = 20.0 if kw_in_body else 0.0,
+            max_pts = 20.0,
+            passed  = kw_in_body,
+            fix     = (
+                f"Ensure body paragraphs contain query keywords "
+                f"({', '.join(keywords[:3])}). "
+                "Write 1–2 paragraphs that directly and explicitly answer the query."
+            ),
+        )
 
+        # Word count
         if p.word_count >= 500:
-            score += 10.0
+            wc_earned, wc_passed = 10.0, True
         elif p.word_count >= 300:
-            score += 5.0
+            wc_earned, wc_passed = 5.0, False
+        else:
+            wc_earned, wc_passed = 0.0, False
 
-        return min(score, 100.0)
+        bd.add_geo(
+            signal  = f"Word count ≥ 500 (current: {p.word_count})",
+            earned  = wc_earned,
+            max_pts = 10.0,
+            passed  = wc_passed,
+            fix     = (
+                f"Increase body content to at least 500 words (currently {p.word_count}). "
+                "Longer, substantive content gives AI engines more passages to cite."
+            ),
+        )
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -310,9 +508,7 @@ class ContentAuditHandler(AuditHandler):
             with urllib.request.urlopen(req, timeout=10) as resp:
                 html = resp.read(131_072).decode("utf-8", errors="replace")
         except Exception:
-            logger.warning(
-                "[ContentAuditHandler] Failed to fetch %s", url
-            )
+            logger.warning("[ContentAuditHandler] Failed to fetch %s", url)
             return None
 
         parser = _ContentParser()
@@ -321,7 +517,6 @@ class ContentAuditHandler(AuditHandler):
 
     @staticmethod
     def _keywords(query: str) -> list[str]:
-        """Lowercased individual tokens from the query, stop-words removed."""
         stop = {
             "a", "an", "the", "and", "or", "in", "on", "at",
             "to", "for", "of", "is", "are", "was", "with",
@@ -383,32 +578,62 @@ if __name__ == "__main__":
         print(f"  • Avg AEO:  {result.metadata['avg_aeo_score']:.1f}")
         print(f"  • Avg GEO:  {result.metadata['avg_geo_score']:.1f}")
 
-        print(f"\nPer-query breakdown:")
+        # ── Per-query breakdown ────────────────────────────────────────────────
         for ps in result.metadata["page_scores"]:
-            print(
-                f"  {ps['query']!r:50s}  "
-                f"AEO={ps['aeo_score']:.0f}  "
-                f"GEO={ps['geo_score']:.0f}"
-            )
+            print(f"\n{'━' * 80}")
+            print(f"  Query: {ps['query']}")
+            print(f"  AEO: {ps['aeo_score']:.0f}/100   GEO: {ps['geo_score']:.0f}/100")
 
+            print(f"\n  AEO Signal Breakdown:")
+            print(f"  {'Signal':<45}  {'Earned':>6}  {'Max':>5}  {'Status'}")
+            print(f"  {'─' * 45}  {'─' * 6}  {'─' * 5}  {'─' * 6}")
+            for sig in ps["aeo_signals"]:
+                status = "✓" if sig["passed"] else "✗"
+                print(
+                    f"  {sig['signal']:<45}  "
+                    f"{sig['earned']:>6.0f}  "
+                    f"{sig['max']:>5.0f}  "
+                    f"{status}"
+                )
+
+            print(f"\n  GEO Signal Breakdown:")
+            print(f"  {'Signal':<45}  {'Earned':>6}  {'Max':>5}  {'Status'}")
+            print(f"  {'─' * 45}  {'─' * 6}  {'─' * 5}  {'─' * 6}")
+            for sig in ps["geo_signals"]:
+                status = "✓" if sig["passed"] else "✗"
+                print(
+                    f"  {sig['signal']:<45}  "
+                    f"{sig['earned']:>6.0f}  "
+                    f"{sig['max']:>5.0f}  "
+                    f"{status}"
+                )
+
+            if ps["aeo_recommendations"]:
+                print(f"\n  AEO Recommendations to reach 100:")
+                for i, rec in enumerate(ps["aeo_recommendations"], 1):
+                    print(f"    {i}. {rec}")
+
+            if ps["geo_recommendations"]:
+                print(f"\n  GEO Recommendations to reach 100:")
+                for i, rec in enumerate(ps["geo_recommendations"], 1):
+                    print(f"    {i}. {rec}")
+
+        # ── Findings ──────────────────────────────────────────────────────────
         if result.findings:
-            print(f"\nFindings ({len(result.findings)}):")
+            print(f"\n{'─' * 80}")
+            print(f"Findings ({len(result.findings)}):")
             for f in result.findings:
                 print(f"  ⚠ {f}")
-        else:
-            print(f"\nFindings: None")
 
-        print(f"\nResult JSON:")
+        # ── JSON ──────────────────────────────────────────────────────────────
+        print(f"\n{'─' * 80}")
+        print("Result JSON:")
         print(json.dumps({
             "handler":  result.handler,
             "passed":   result.passed,
             "score":    result.score,
             "findings": result.findings,
-            "metadata": {
-                "avg_aeo_score": result.metadata["avg_aeo_score"],
-                "avg_geo_score": result.metadata["avg_geo_score"],
-                "page_scores":   result.metadata["page_scores"],
-            },
+            "metadata": result.metadata,
         }, indent=2))
 
     print(f"\n{'=' * 80}")
