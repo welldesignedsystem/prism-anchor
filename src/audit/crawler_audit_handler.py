@@ -7,8 +7,8 @@ from html.parser import HTMLParser
 
 from src.core import WorkflowContext
 
-from .audit_handler import AuditHandler
-from .audit_result import AuditResult
+from src.audit import AuditHandler
+from src.audit import AuditResult
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +142,82 @@ class _MetaTagParser(HTMLParser):
         # <meta name="googlebot" content="noindex, ...">
         if name in {"robots", "googlebot", "bingbot"} and "noindex" in content:
             self.noindex = True
+
+# ── Example usage ──────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    """
+    Example: Run CrawlerAuditHandler against real websites.
+    
+    Usage:
+        python -m src.audit.crawler_audit_handler
+    
+    This example demonstrates:
+    - Direct handler instantiation
+    - Real HTTP requests to actual websites
+    - Complete audit workflow
+    - Result formatting and output
+    """
+    import json
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] %(name)s: %(message)s"
+    )
+
+    # Test domains
+    test_domains = [
+        # "example.com",
+        # "google.com",
+        "apacrelocation.com",
+    ]
+
+    handler = CrawlerAuditHandler()
+
+    print("\n" + "=" * 80)
+    print("CrawlerAuditHandler — Real Website Audit Example")
+    print("=" * 80)
+
+    for domain in test_domains:
+        print(f"\n{'─' * 80}")
+        print(f"Auditing: {domain}")
+        print(f"{'─' * 80}")
+
+        # Create a mock context (normally passed from SetupStep)
+        ctx = WorkflowContext(domain=domain, queries=[f"{domain} example"])
+
+        # Run the audit
+        result = handler._handle(ctx)
+
+        # Display results
+        print(f"\n✓ Handler:       {result.handler}")
+        print(f"✓ Passed:        {result.passed}")
+        print(f"✓ Score:         {result.score:.1f}/100")
+
+        print(f"\nMetadata:")
+        print(f"  • Blocked Bots: {len(result.metadata['blocked_bots'])}")
+        print(f"  • Noindex:      {result.metadata['noindex']}")
+
+        if result.findings:
+            print(f"\nFindings ({len(result.findings)}):")
+            for finding in result.findings:
+                print(f"  ⚠ {finding}")
+        else:
+            print(f"\nFindings: None")
+
+        print(f"\nResult JSON:")
+        result_dict = {
+            "handler": result.handler,
+            "passed": result.passed,
+            "score": result.score,
+            "findings": result.findings,
+            "metadata": {
+                "blocked_bots": result.metadata["blocked_bots"],
+                "noindex": result.metadata["noindex"],
+            }
+        }
+        print(json.dumps(result_dict, indent=2))
+
+    print(f"\n{'=' * 80}")
+    print("Audit Complete")
+    print(f"{'=' * 80}\n")
