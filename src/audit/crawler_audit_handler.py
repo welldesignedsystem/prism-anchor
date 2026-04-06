@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import urllib.robotparser
+import urllib.request
+from html.parser import HTMLParser
 
 from src.core import WorkflowContext
 
@@ -62,18 +65,80 @@ class CrawlerAuditHandler(AuditHandler):
             metadata = {"blocked_bots": blocked, "noindex": noindex},
         )
 
-    # ── Stubs — replace with real implementations ─────────────────────────────
+    # ── Real implementations ───────────────────────────────────────────────────
 
     def _fetch_robots_txt(self, domain: str) -> dict[str, bool]:
         """
-        Returns {bot_name: is_allowed}.
-        Stub always allows all bots — replace with real HTTP fetch + parse.
+        Fetches and parses robots.txt, returning {bot_name: is_allowed}
+        for every bot in KNOWN_AI_BOTS.
+
+        Falls back to allowing all bots on any network/parse error so that
+        a missing or unreachable robots.txt never fails the audit unfairly.
         """
-        return {bot: True for bot in self.KNOWN_AI_BOTS}
+        robots_url = f"https://{domain}/robots.txt"
+        rp = urllib.robotparser.RobotFileParser(url=robots_url)
+
+        try:
+            rp.read()                           # one HTTP GET, stdlib only
+        except Exception:
+            logger.warning(
+                "[CrawlerAuditHandler] Could not fetch %s — assuming all allowed",
+                robots_url,
+            )
+            return {bot: True for bot in self.KNOWN_AI_BOTS}
+
+        # urllib.robotparser.can_fetch() requires a path, not just a domain.
+        # "/" covers the root; AI bots that care about a specific path would
+        # need a more targeted check — extend here as required.
+        return {
+            bot: rp.can_fetch(bot, f"https://{domain}/")
+            for bot in self.KNOWN_AI_BOTS
+        }
 
     def _check_meta_noindex(self, domain: str) -> bool:
         """
-        Returns True if a noindex meta tag is present.
-        Stub always returns False — replace with real HTML fetch + parse.
+        Fetches the homepage HTML and returns True if any <meta> tag
+        contains a noindex directive targeting robots/AI crawlers.
+
+        Only the first 32 KB of the response is read: meta tags always
+        live in <head>, so there is no need to download the full page.
         """
-        return False
+        url = f"https://{domain}/"
+
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AuditBot/1.0)"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                # Read only the head of the document to keep latency low.
+                html_chunk = resp.read(32_768).decode("utf-8", errors="replace")
+        except Exception:
+            logger.warning(
+                "[CrawlerAuditHandler] Could not fetch %s for meta-tag check", url
+            )
+            return False
+
+        parser = _MetaTagParser()
+        parser.feed(html_chunk)
+        return parser.noindex
+
+class _MetaTagParser(HTMLParser):
+    """Lightweight parser that scans <meta> tags for noindex directives."""
+
+    def __init__(self):
+        super().__init__()
+        self.noindex = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "meta":
+            return
+
+        attr = dict(attrs)
+        name    = (attr.get("name")    or "").lower()
+        content = (attr.get("content") or "").lower()
+
+        # <meta name="robots" content="noindex, ...">
+        # <meta name="googlebot" content="noindex, ...">
+        if name in {"robots", "googlebot", "bingbot"} and "noindex" in content:
+            self.noindex = True
