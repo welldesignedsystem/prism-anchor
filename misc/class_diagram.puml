@@ -33,6 +33,13 @@ StepBase --> WorkflowContext
 
 }
 
+note right of Core
+  Core orchestration framework providing:
+  - WorkflowOrchestrator: Manages step execution
+  - StepBase: Template method pattern for steps
+  - WorkflowContext: Shared data container
+end note
+
 ' ── Step 1 — Chain of Responsibility ────────────────
 
 package "Setup (Step 1)" {
@@ -63,6 +70,15 @@ FrequencyHandler --|> ConfigHandler
 
 }
 
+note right of "Setup (Step 1)"
+  Setup Step: Validates and configures project settings
+  - Domain normalization and validation
+  - Query deduplication and validation
+  - AI engine selection
+  - Crawl frequency configuration
+  Uses Chain of Responsibility pattern
+end note
+
 ' ── Step 2 — Chain of Responsibility + short-circuit ─
 
 package "Audit (Step 2)" {
@@ -90,6 +106,14 @@ TechnicalSEOHandler --|> AuditHandler
 ContentAuditHandler --|> AuditHandler
 
 }
+
+note right of "Audit (Step 2)"
+  Audit Step: Performs initial technical audits
+  - CrawlerAuditHandler: Checks if AI bots can access site
+  - TechnicalSEOHandler: Validates speed, sitemap, broken links
+  - ContentAuditHandler: Analyzes content for AEO/GEO potential
+  Uses Chain of Responsibility with short-circuiting
+end note
 
 ' ── Step 3 — Observer ────────────────────────────────
 
@@ -119,6 +143,15 @@ SEORankTracker ..|> VisibilityTracker
 VoiceSearchTracker ..|> VisibilityTracker
 
 }
+
+note right of "Monitor (Step 3)"
+  Monitor Step: Tracks AI engine visibility continuously
+  - GEOTracker: Monitors citations in AI search results
+  - AEOTracker: Tracks snippet and PAA box ownership
+  - SEORankTracker: Monitors organic search rankings
+  - VoiceSearchTracker: Tracks spoken answer presence
+  Uses Observer pattern for real-time updates
+end note
 
 ' ── Step 4 — Composite ───────────────────────────────
 
@@ -155,6 +188,15 @@ CompetitorShareScore ..|> ScoreComponent
 
 }
 
+note right of "Score (Step 4)"
+  Score Step: Computes visibility scores and metrics
+  - GEOScore: Calculates AI citation frequency (0-100)
+  - AEOScore: Measures snippet/PAA box win rates
+  - SEOScore: Evaluates organic ranking health
+  - CompetitorShareScore: Compares citations vs competitors
+  Uses Composite pattern for hierarchical scoring
+end note
+
 ' ── Step 5 — Strategy (fan-out) ──────────────────────
 
 package "Optimise (Step 5)" {
@@ -182,6 +224,15 @@ FAQGeneratorStrategy ..|> OptimisationStrategy
 SchemaBuilderStrategy ..|> OptimisationStrategy
 
 }
+
+note right of "Optimise (Step 5)"
+  Optimise Step: Generates content optimization suggestions
+  - ContentAnalyser: Scores pages and identifies gaps
+  - BriefGeneratorStrategy: Creates answer-first content briefs
+  - FAQGeneratorStrategy: Builds Q&As from PAA data
+  - SchemaBuilderStrategy: Generates JSON-LD markup
+  Uses Strategy pattern with fan-out execution
+end note
 
 ' ── Step 6 — Strategy (routing) ──────────────────────
 
@@ -212,6 +263,14 @@ DailyDigestStrategy ..|> AlertStrategy
 WeeklySummaryStrategy ..|> AlertStrategy
 
 }
+
+note right of "Alert (Step 6)"
+  Alert Step: Routes alerts based on severity and timing
+  - ImmediateAlertStrategy: Critical alerts (Slack + Email)
+  - DailyDigestStrategy: Moderate changes (Email)
+  - WeeklySummaryStrategy: Positive trends (Email)
+  Uses Strategy pattern with routing logic
+end note
 
 ' ── Step 7 — Builder ─────────────────────────────────
 
@@ -246,5 +305,13 @@ ReportBuilder --> Report
 ReportBuilder --> ExportFormat
 
 }
+
+note right of "Report (Step 7)"
+  Report Step: Generates comprehensive reports and exports
+  - WhiteLabelReportBuilder: Creates branded client PDFs
+  - Executive Dashboard: GEO/AEO/SEO scores overview
+  - Export formats: Sheets, Looker Studio, BigQuery, API
+  Uses Builder pattern for flexible report construction
+end note
 
 @enduml
